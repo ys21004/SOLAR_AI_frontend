@@ -35,27 +35,26 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
       const result = await response.json();
       console.log('Response from backend:', result);
 
-      if (result.success) {
-        // Add the new record to the local state
-        addMaintenanceRecord(result.record);
-        
-        // Fetch updated history from the backend
-        onSubmitSuccess();
+      // Add the new record to the local state
+      addMaintenanceRecord(result.record);
+      
+      // Fetch updated history from the backend
+      onSubmitSuccess();
 
-        // Reset form
-        setFormData({
-          panelId: '',
-          technicianName: '',
-          installationDate: '',
-          lastMaintenanceDate: '',
-          dc_power: '',
-          ac_power: '',
-          ambient_temperature: '',
-          module_temperature: '',
-          irradiation: '',
-          description: '',
-        });
-      }
+      // Reset form
+      setFormData({
+        panelId: '',
+        technicianName: '',
+        installationDate: '',
+        lastMaintenanceDate: '',
+        dc_power: '',
+        ac_power: '',
+        ambient_temperature: '',
+        module_temperature: '',
+        irradiation: '',
+        description: '',
+      });
+
     } catch (error) {
       console.error('Error submitting maintenance check:', error);
     }

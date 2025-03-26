@@ -51,7 +51,7 @@ function App() {
     }
   });
 
-  // Fetch maintenance history when component mounts
+  // Add useEffect to fetch maintenance history when component mounts
   useEffect(() => {
     fetchMaintenanceHistory();
   }, []);
@@ -61,7 +61,6 @@ function App() {
       const response = await fetch('http://localhost:5001/api/maintenance');
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched maintenance history:', data);
         setMaintenanceHistory(data);
       }
     } catch (error) {
