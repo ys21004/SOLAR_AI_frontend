@@ -1,0 +1,26 @@
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getAnalytics } from 'firebase/analytics';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAjCZNf6Nq_rJZX6-AfcoKVqSoIyNs6bmw",
+  authDomain: "solar-ai-6545a.firebaseapp.com",
+  projectId: "solar-ai-6545a",
+  storageBucket: "solar-ai-6545a.firebasestorage.app",
+  messagingSenderId: "242197453997",
+  appId: "1:242197453997:web:f4c64795db930862487a24",
+  measurementId: "G-H45Q9J4Q05"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+// Initialize Firebase services
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+export { auth, db, storage, analytics };

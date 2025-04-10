@@ -1,7 +1,13 @@
 import './App.css';
 import { useState, useEffect } from 'react';
+import { auth } from './config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import Dashboard from './components/Dashboard';
 import SolarMaintenanceForm from './components/SolarMaintenanceForm';
+import Auth from './components/Auth';
+import Logo from './components/Logo';
+import { db } from './config/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -38,6 +44,7 @@ function App() {
     error: null,
     formData: {
       panelId: '',
+      panelLocation: '',
       installationDate: '',
       lastMaintenanceDate: '',
       currentEfficiency: '',
@@ -51,18 +58,29 @@ function App() {
     }
   });
 
-  // Add useEffect to fetch maintenance history when component mounts
+  // Update useEffect to fetch maintenance history from Firebase
   useEffect(() => {
     fetchMaintenanceHistory();
   }, []);
 
+  useEffect(() => {
+    // Listen for authentication state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
+
   const fetchMaintenanceHistory = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/maintenance');
-      if (response.ok) {
-        const data = await response.json();
-        setMaintenanceHistory(data);
-      }
+      const querySnapshot = await getDocs(collection(db, 'maintenance_records'));
+      const records = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setMaintenanceHistory(records);
     } catch (error) {
       console.error('Error fetching maintenance history:', error);
     }
@@ -351,6 +369,22 @@ function App() {
             </div>
 
             <div className="form-group">
+              <label>Panel Location</label>
+              <select
+                name="panelLocation"
+                value={maintenanceAnalysis.formData.panelLocation}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="">Select Location</option>
+                <option value="north">North Site</option>
+                <option value="south">South Site</option>
+                <option value="east">East Site</option>
+                <option value="west">West Site</option>
+              </select>
+            </div>
+
+            <div className="form-group">
               <label>Technician Name</label>
               <input
                 type="text"
@@ -526,40 +560,54 @@ function App() {
     </div>
   );
 
+  if (!isAuthenticated) {
+    return <Auth onLogin={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <div className="App">
       <nav className="navbar">
-        <h1>Solar AI Portal</h1>
-        <div className="nav-links">
+        <div className="nav-container">
+          <div className="nav-group">
+            <Logo size="small" showTagline={false} />
+            <div className="nav-links">
+              <button 
+                className={activeTab === 'dashboard' ? 'active' : ''} 
+                onClick={() => setActiveTab('dashboard')}
+              >
+                Dashboard
+              </button>
+              <button 
+                className={activeTab === 'solar-maintenance' ? 'active' : ''} 
+                onClick={() => setActiveTab('solar-maintenance')}
+              >
+                AI Maintenance Check
+              </button>
+              <button 
+                className={activeTab === 'tech-portal' ? 'active' : ''} 
+                onClick={() => setActiveTab('tech-portal')}
+              >
+                Technician Portal
+              </button>
+              <button 
+                className={activeTab === 'maintenance' ? 'active' : ''} 
+                onClick={() => setActiveTab('maintenance')}
+              >
+                Maintenance History
+              </button>
+              <button 
+                className={activeTab === 'admin' ? 'active' : ''} 
+                onClick={() => setActiveTab('admin')}
+              >
+                Admin Panel
+              </button>
+            </div>
+          </div>
           <button 
-            className={activeTab === 'dashboard' ? 'active' : ''} 
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => auth.signOut()}
+            className="logout-button"
           >
-            Dashboard
-          </button>
-          <button 
-            className={activeTab === 'solar-maintenance' ? 'active' : ''} 
-            onClick={() => setActiveTab('solar-maintenance')}
-          >
-            AI Maintenance Check
-          </button>
-          <button 
-            className={activeTab === 'tech-portal' ? 'active' : ''} 
-            onClick={() => setActiveTab('tech-portal')}
-          >
-            Technician Portal
-          </button>
-          <button 
-            className={activeTab === 'maintenance' ? 'active' : ''} 
-            onClick={() => setActiveTab('maintenance')}
-          >
-            Maintenance History
-          </button>
-          <button 
-            className={activeTab === 'admin' ? 'active' : ''} 
-            onClick={() => setActiveTab('admin')}
-          >
-            Admin Panel
+            Logout
           </button>
         </div>
       </nav>
@@ -571,6 +619,51 @@ function App() {
         {activeTab === 'maintenance' && renderMaintenanceHistory()}
         {activeTab === 'admin' && renderAdminPanel()}
       </main>
+
+      <footer className="footer">
+        <div className="footer-content">
+          <div className="footer-section">
+            <h4>About Solar AI</h4>
+            <p>Advanced solar panel maintenance and monitoring system powered by artificial intelligence to ensure optimal performance and longevity of your solar installations.</p>
+          </div>
+          <div className="footer-section">
+            <h4>Quick Links</h4>
+            <ul>
+              <li><button onClick={() => {
+                setActiveTab('dashboard');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }} className="footer-link">Dashboard</button></li>
+              <li><button onClick={() => {
+                setActiveTab('solar-maintenance');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }} className="footer-link">AI Maintenance Check</button></li>
+              <li><button onClick={() => {
+                setActiveTab('tech-portal');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }} className="footer-link">Technician Portal</button></li>
+              <li><button onClick={() => {
+                setActiveTab('maintenance');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }} className="footer-link">Maintenance History</button></li>
+              <li><button onClick={() => {
+                setActiveTab('admin');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }} className="footer-link">Admin Panel</button></li>
+            </ul>
+          </div>
+          <div className="footer-section">
+            <h4>Contact Us</h4>
+            <ul>
+              <li>Email: support@solarai.com</li>
+              <li>Phone: (555) 123-4567</li>
+              <li>Address: 123 Solar Street, Energy City</li>
+            </ul>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <p>&copy; 2025 Solar AI. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }

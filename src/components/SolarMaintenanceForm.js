@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { db } from '../config/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
   const [formData, setFormData] = useState({
@@ -14,32 +16,35 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
     description: '',
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      console.log('Sending form data:', formData);
-
-      const response = await fetch('http://localhost:5001/api/maintenance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+      // Add the maintenance record to Firestore
+      const docRef = await addDoc(collection(db, 'maintenance_records'), {
+        ...formData,
+        timestamp: serverTimestamp(),
+        status: 'pending',
+        efficiency: calculateEfficiency(formData),
+        recommendations: generateRecommendations(formData)
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to submit maintenance check');
-      }
-
-      const result = await response.json();
-      console.log('Response from backend:', result);
+      console.log('Document written with ID: ', docRef.id);
 
       // Add the new record to the local state
-      addMaintenanceRecord(result.record);
-      
-      // Fetch updated history from the backend
-      onSubmitSuccess();
+      addMaintenanceRecord({
+        id: docRef.id,
+        ...formData,
+        timestamp: new Date(),
+        status: 'pending',
+        efficiency: calculateEfficiency(formData),
+        recommendations: generateRecommendations(formData)
+      });
 
       // Reset form
       setFormData({
@@ -55,12 +60,53 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
         description: '',
       });
 
+      // Call the success callback
+      onSubmitSuccess();
+
     } catch (error) {
       console.error('Error submitting maintenance check:', error);
+      setError('Failed to submit maintenance check. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Add onChange handlers for all form fields
+  const calculateEfficiency = (data) => {
+    // Simple efficiency calculation based on power values
+    if (data.dc_power && data.ac_power) {
+      return ((parseFloat(data.ac_power) / parseFloat(data.dc_power)) * 100).toFixed(2);
+    }
+    return 'N/A';
+  };
+
+  const generateRecommendations = (data) => {
+    const recommendations = [];
+    
+    // Check temperature differences
+    if (data.module_temperature && data.ambient_temperature) {
+      const tempDiff = parseFloat(data.module_temperature) - parseFloat(data.ambient_temperature);
+      if (tempDiff > 25) {
+        recommendations.push('High temperature difference detected. Check for proper ventilation.');
+      }
+    }
+
+    // Check power efficiency
+    const efficiency = calculateEfficiency(data);
+    if (efficiency !== 'N/A' && parseFloat(efficiency) < 90) {
+      recommendations.push(`Low efficiency detected (${efficiency}%). Check for potential issues.`);
+    }
+
+    // Check irradiation levels
+    if (data.irradiation) {
+      const irradiation = parseFloat(data.irradiation);
+      if (irradiation < 500) {
+        recommendations.push('Low irradiation levels detected. Check for shading or weather conditions.');
+      }
+    }
+
+    return recommendations;
+  };
+
   const handleInputChange = (e) => {
     const { id, value } = e.target;
     setFormData(prev => ({
@@ -71,6 +117,8 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="maintenance-form">
+      {error && <div className="error-message">{error}</div>}
+      
       <div className="form-group">
         <label htmlFor="panelId">Panel ID</label>
         <input
@@ -81,6 +129,7 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
+
       <div className="form-group">
         <label htmlFor="technicianName">Technician Name</label>
         <input
@@ -91,6 +140,29 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
+
+      <div className="form-group">
+        <label htmlFor="installationDate">Installation Date</label>
+        <input
+          type="date"
+          id="installationDate"
+          value={formData.installationDate}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="lastMaintenanceDate">Last Maintenance Date</label>
+        <input
+          type="date"
+          id="lastMaintenanceDate"
+          value={formData.lastMaintenanceDate}
+          onChange={handleInputChange}
+          required
+        />
+      </div>
+
       <div className="form-group">
         <label htmlFor="dc_power">DC Power (W)</label>
         <input
@@ -101,6 +173,7 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
+
       <div className="form-group">
         <label htmlFor="ac_power">AC Power (W)</label>
         <input
@@ -111,6 +184,7 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
+
       <div className="form-group">
         <label htmlFor="ambient_temperature">Ambient Temperature (°C)</label>
         <input
@@ -121,6 +195,7 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
+
       <div className="form-group">
         <label htmlFor="module_temperature">Module Temperature (°C)</label>
         <input
@@ -131,6 +206,7 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
+
       <div className="form-group">
         <label htmlFor="irradiation">Irradiation (W/m²)</label>
         <input
@@ -141,7 +217,20 @@ const SolarMaintenanceForm = ({ addMaintenanceRecord, onSubmitSuccess }) => {
           required
         />
       </div>
-      <button type="submit">Submit Maintenance Check</button>
+
+      <div className="form-group">
+        <label htmlFor="description">Description</label>
+        <textarea
+          id="description"
+          value={formData.description}
+          onChange={handleInputChange}
+          rows="4"
+        />
+      </div>
+
+      <button type="submit" disabled={loading}>
+        {loading ? 'Submitting...' : 'Submit Maintenance Check'}
+      </button>
     </form>
   );
 };
